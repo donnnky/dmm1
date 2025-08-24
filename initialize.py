@@ -26,11 +26,14 @@ import constants as ct
 ############################################################
 # 「.env」ファイルで定義した環境変数の読み込み
 try:
-    from dotenv import load_dotenv
-    load_dotenv()
+    load_dotenv()  # 先頭で import 済み
 except Exception:
     pass
 
+if "OPENAI_API_KEY" in st.secrets:
+    os.environ["OPENAI_API_KEY"] = st.secrets["OPENAI_API_KEY"]
+if "USER_AGENT" in st.secrets:
+    os.environ["USER_AGENT"] = st.secrets["USER_AGENT"]
 
 ############################################################
 # 関数定義
@@ -106,41 +109,50 @@ def initialize_retriever():
     """
     画面読み込み時にRAGのRetriever（ベクターストアから検索するオブジェクト）を作成
     """
-    # ロガーを読み込むことで、後続の処理中に発生したエラーなどがログファイルに記録される
     logger = logging.getLogger(ct.LOGGER_NAME)
 
     # すでにRetrieverが作成済みの場合、後続の処理を中断
     if "retriever" in st.session_state:
         return
-    
-    # RAGの参照先となるデータソースの読み込み
-    docs_all = load_data_sources()
 
-    # OSがWindowsの場合、Unicode正規化と、cp932（Windows用の文字コード）で表現できない文字を除去
-    for doc in docs_all:
-        doc.page_content = adjust_string(doc.page_content)
-        for key in doc.metadata:
-            doc.metadata[key] = adjust_string(doc.metadata[key])
-    
-    # 埋め込みモデルの用意
-    embeddings = OpenAIEmbeddings()
-    
-    # チャンク分割用のオブジェクトを作成
-    text_splitter = CharacterTextSplitter(
-        chunk_size=ct.CHUNK_SIZE,
-        chunk_overlap=ct.CHUNK_OVERLAP,
-        separator="\n")
+    try:
+        # 1) データ読み込み
+        docs_all = load_data_sources()
 
-    st.session_state.retriever = db.as_retriever(search_kwargs={"k": ct.RAG_TOP_K})
+        # 2) Windows対策（文字正規化）
+        for doc in docs_all:
+            doc.page_content = adjust_string(doc.page_content)
+            for key in doc.metadata:
+                doc.metadata[key] = adjust_string(doc.metadata[key])
 
-    # チャンク分割を実施
-    splitted_docs = text_splitter.split_documents(docs_all)
+        # 3) 埋め込みモデル
+        embeddings = OpenAIEmbeddings()
 
-    # ベクターストアの作成
-    db = Chroma.from_documents(splitted_docs, embedding=embeddings)
+        # 4) チャンク分割（定数を使用）
+        text_splitter = CharacterTextSplitter(
+            chunk_size=ct.CHUNK_SIZE,
+            chunk_overlap=ct.CHUNK_OVERLAP,
+            separator="\n",
+        )
+        splitted_docs = text_splitter.split_documents(docs_all)
 
-    # ベクターストアを検索するRetrieverの作成
-    st.session_state.retriever = db.as_retriever(search_kwargs={"k": 3})
+        # 5) ベクターストア作成
+        db = Chroma.from_documents(splitted_docs, embedding=embeddings)
+
+        # 6) Retriever 作成（定数を使用）
+        st.session_state.retriever = db.as_retriever(
+            search_kwargs={"k": ct.RETRIEVER_TOP_K}
+        )
+
+        # 参考ログ
+        logger.info(
+            "Retriever initialized. docs=%d, chunks=%d, k=%d",
+            len(docs_all), len(splitted_docs), ct.RETRIEVER_TOP_K
+        )
+
+    except Exception:
+        logger.exception("initialize_retriever failed")
+        raise
 
 
 def initialize_session_state():
