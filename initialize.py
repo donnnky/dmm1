@@ -177,25 +177,35 @@ def load_data_sources():
     # ファイル読み込みの実行（渡した各リストにデータが格納される）
     recursive_file_check(ct.RAG_TOP_FOLDER_PATH, docs_all)
 
+    # --- ここから Web 読み込み部（正しいインデント & 例外処理）---
     web_docs_all = []
-    header = {"User-Agent": os.getenv(
-        "USER_AGENT",
-        "Mozilla/5.0 (compatible; StreamlitBot/1.0; +https://streamlit.io)")}
+    header = {
+        "User-Agent": os.getenv(
+            "USER_AGENT",
+            "Mozilla/5.0 (compatible; StreamlitBot/1.0; +https://streamlit.io)"
+        )
+    }
     for web_url in ct.WEB_URL_LOAD_TARGETS:
         try:
+            # langchain_community の引数差異に対応
             try:
                 loader = WebBaseLoader(web_paths=[web_url], header_template=header)
             except TypeError:
                 loader = WebBaseLoader(web_url, header_template=header)
 
-        web_docs = loader.load()
-        web_docs_all.extend(web_docs)
-    except Exception as e:
-        logging.getLogger(ct.LOGGER_NAME).warning(
-            f"Web load failed: {web_url} ({e})"
-        )
-        
-docs_all.extend(web_docs_all)
+            web_docs = loader.load()
+            web_docs_all.extend(web_docs)
+
+        except Exception as e:
+            logging.getLogger(ct.LOGGER_NAME).warning(
+                f"Web load failed: {web_url} ({e})"
+            )
+            # 1件失敗しても他の URL は続行
+            continue
+
+    # ここは for の外：読み込めた分だけ docs_all に足す
+    docs_all.extend(web_docs_all)
+    # --- ここまで ---
 
     return docs_all
 
