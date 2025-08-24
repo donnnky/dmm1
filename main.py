@@ -62,6 +62,7 @@ except Exception as e:
     # エラーメッセージの画面表示
     st.error(utils.build_error_message(ct.INITIALIZE_ERROR_MESSAGE), icon=ct.ERROR_ICON)
     # 後続の処理を中断
+    st.exception(e)  
     st.stop()
 
 # アプリ起動時のログファイルへの出力

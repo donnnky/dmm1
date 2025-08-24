@@ -91,47 +91,47 @@ def initialize_session_id():
 
 
 def initialize_retriever():
-    """
-    RAG の Retriever を作成
-    """
     logger = logging.getLogger(ct.LOGGER_NAME)
-
     if "retriever" in st.session_state:
         return
 
     try:
+        # 0) APIキー前提チェック
+        if not os.getenv("OPENAI_API_KEY"):
+            raise RuntimeError("OPENAI_API_KEY is not set")
+
         # 1) データ読み込み
         docs_all = load_data_sources()
 
-        # 2) Windows 対策（文字正規化）
+        # 2) 正規化（Windows 対策）
         for doc in docs_all:
             doc.page_content = adjust_string(doc.page_content)
-            for key in list(doc.metadata.keys()):
-                doc.metadata[key] = adjust_string(doc.metadata[key])
+            for k in list(doc.metadata.keys()):
+                doc.metadata[k] = adjust_string(doc.metadata[k])
 
-        # 3) 埋め込みモデル
-        embeddings = OpenAIEmbeddings()
-
-        # 4) チャンク分割
+        # 3) チャンク
         splitter = CharacterTextSplitter(
-            chunk_size=ct.CHUNK_SIZE,
-            chunk_overlap=ct.CHUNK_OVERLAP,
+            chunk_size=getattr(ct, "CHUNK_SIZE", 500),
+            chunk_overlap=getattr(ct, "CHUNK_OVERLAP", 50),
             separator="\n",
         )
         chunks = splitter.split_documents(docs_all)
 
-        # 5) ベクターストア
+        if not chunks:
+            raise RuntimeError(
+                "No documents were loaded. Check RAG_TOP_FOLDER_PATH and WEB_URL_LOAD_TARGETS."
+            )
+
+        # 4) 埋め込み & ベクターストア
+        embeddings = OpenAIEmbeddings()
         db = Chroma.from_documents(chunks, embedding=embeddings)
 
-        # 6) Retriever
-        st.session_state.retriever = db.as_retriever(
-            search_kwargs={"k": ct.RETRIEVER_TOP_K}
-        )
+        # 5) Retriever
+        top_k = getattr(ct, "RETRIEVER_TOP_K", getattr(ct, "RAG_TOP_K", 3))
+        st.session_state.retriever = db.as_retriever(search_kwargs={"k": top_k})
 
-        logger.info(
-            "Retriever initialized. docs=%d, chunks=%d, k=%d",
-            len(docs_all), len(chunks), ct.RETRIEVER_TOP_K
-        )
+        logger.info("Retriever initialized. docs=%d, chunks=%d, k=%d",
+                    len(docs_all), len(chunks), top_k)
 
     except Exception:
         logger.exception("initialize_retriever failed")
@@ -150,40 +150,43 @@ def initialize_session_state():
 def load_data_sources():
     """
     RAGの参照先となるデータソースの読み込み
-
-    Returns:
-        読み込んだ通常データソース
+    Returns: list[Document]
     """
-    # データソース（ファイル由来）
+    logger = logging.getLogger(ct.LOGGER_NAME)
+
+    # 1) ローカルファイル
     docs_all = []
-    recursive_file_check(ct.RAG_TOP_FOLDER_PATH, docs_all)
+    top = getattr(ct, "RAG_TOP_FOLDER_PATH", None)
+    if top and os.path.exists(top):
+        recursive_file_check(top, docs_all)
+    else:
+        logger.warning(f"RAG_TOP_FOLDER_PATH not found: {top}. Skipping local files.")
 
-    # Webページの読み込み
+    # 2) Web ページ
     web_docs_all = []
-    header = {
-        "User-Agent": os.getenv(
-            "USER_AGENT",
-            "Mozilla/5.0 (compatible; StreamlitBot/1.0; +https://streamlit.io)"
-        )
-    }
+    urls = getattr(ct, "WEB_URL_LOAD_TARGETS", [])
+    if not isinstance(urls, (list, tuple)):
+        urls = []
 
-    for web_url in ct.WEB_URL_LOAD_TARGETS:
+    # User-Agent（secrets > env > 既定値）
+    ua = os.getenv(
+        "USER_AGENT",
+        "Mozilla/5.0 (compatible; StreamlitBot/1.0; +https://streamlit.io)"
+    )
+
+    for web_url in urls:
         try:
-            # langchain の引数差異に対応
+            # langchain-community のバージョン差異に合わせて生成を試行
             try:
-                loader = WebBaseLoader(web_paths=[web_url], header_template=header)
+                loader = WebBaseLoader(web_paths=[web_url], header_template={"User-Agent": ua})
             except TypeError:
-                loader = WebBaseLoader(web_url, header_template=header)
+                loader = WebBaseLoader(web_url, header_template={"User-Agent": ua})
 
             web_docs = loader.load()
             web_docs_all.extend(web_docs)
-
         except Exception as e:
-            logging.getLogger(ct.LOGGER_NAME).warning(
-                f"Web load failed: {web_url} ({e})"
-            )
+            logger.warning(f"Web load failed: {web_url} ({e})")
 
-    # ファイル由来 + Web由来 を結合
     docs_all.extend(web_docs_all)
     return docs_all
 
