@@ -37,7 +37,7 @@ if "OPENAI_API_KEY" in st.secrets:
 # 任意: ログの WARNING 対策（出ていた USER_AGENT）
 if "USER_AGENT" in st.secrets:
     os.environ["USER_AGENT"] = st.secrets["USER_AGENT"]
-    
+
 ############################################################
 # 2. 設定関連
 ############################################################
@@ -62,6 +62,23 @@ except Exception as e:
     # エラーメッセージの画面表示
     st.error(utils.build_error_message(ct.INITIALIZE_ERROR_MESSAGE), icon=ct.ERROR_ICON)
     # 後続の処理を中断
+    st.stop()
+
+# アプリ起動時のログファイルへの出力
+if not "initialized" in st.session_state:
+    st.session_state.initialized = True
+    logger.info(ct.APP_BOOT_MESSAGE)
+
+# ここを追加：retriever が未作成ならユーザーに知らせて安全停止
+retriever_ready = st.session_state.get("retriever") is not None
+if not retriever_ready:
+    st.warning(
+        "検索インデックス（Retriever）がまだ作成されていません。"
+        "管理者は RAG_TOP_FOLDER_PATH と WEB_URL_LOAD_TARGETS を確認してください。\n"
+        "（必要なら Secrets に `SKIP_WEB_LOAD=\"1\"` を入れて Web 読み込みを一時停止できます）",
+        icon="⚠️",
+    )
+    # ここで止めれば以降の utils.get_llm_response などで失敗しません
     st.stop()
 
 # アプリ起動時のログファイルへの出力
@@ -101,7 +118,9 @@ except Exception as e:
 ############################################################
 # 6. チャット入力の受け付け
 ############################################################
-chat_message = st.chat_input(ct.CHAT_INPUT_HELPER_TEXT)
+# retriever が無いときは入力を無効化（上で st.stop しているので実際は来ませんが保険）
+chat_message = st.chat_input(ct.CHAT_INPUT_HELPER_TEXT, disabled=not retriever_ready)
+
 
 
 ############################################################
