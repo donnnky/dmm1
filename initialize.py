@@ -123,10 +123,11 @@ def initialize_retriever():
     
     # チャンク分割用のオブジェクトを作成
     text_splitter = CharacterTextSplitter(
-        chunk_size=500,
-        chunk_overlap=50,
-        separator="\n"
-    )
+        chunk_size=ct.CHUNK_SIZE,
+        chunk_overlap=ct.CHUNK_OVERLAP,
+        separator="\n")
+
+    st.session_state.retriever = db.as_retriever(search_kwargs={"k": ct.RAG_TOP_K})
 
     # チャンク分割を実施
     splitted_docs = text_splitter.split_documents(docs_all)
