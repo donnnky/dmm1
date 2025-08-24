@@ -13,3 +13,4 @@ beautifulsoup4
 lxml
 pandas
 requests
+faiss-cpu==1.8.0.post4

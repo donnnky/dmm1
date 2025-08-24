@@ -17,7 +17,8 @@ from dotenv import load_dotenv
 from langchain_community.document_loaders import WebBaseLoader
 from langchain.text_splitter import CharacterTextSplitter
 from langchain_openai import OpenAIEmbeddings
-from langchain_community.vectorstores import Chroma
+from langchain_community.vectorstores import FAISS
+
 
 import constants as ct
 
@@ -124,7 +125,7 @@ def initialize_retriever():
 
         # 4) 埋め込み & ベクターストア
         embeddings = OpenAIEmbeddings()
-        db = Chroma.from_documents(chunks, embedding=embeddings)
+        db = FAISS.from_documents(chunks, embedding=embeddings)
 
         # 5) Retriever
         top_k = getattr(ct, "RETRIEVER_TOP_K", getattr(ct, "RAG_TOP_K", 3))
