@@ -43,8 +43,11 @@ if "USER_AGENT" in st.secrets:
 ############################################################
 # ブラウザタブの表示文言を設定
 st.set_page_config(
-    page_title=ct.APP_NAME
+    page_title=ct.APP_NAME,
+    layout="wide",                      # ← ワイド
+    initial_sidebar_state="expanded",   # ← サイドバー展開
 )
+
 
 # ログ出力を行うためのロガーの設定
 logger = logging.getLogger(ct.LOGGER_NAME)
@@ -87,6 +90,29 @@ if not "initialized" in st.session_state:
     st.session_state.initialized = True
     logger.info(ct.APP_BOOT_MESSAGE)
 
+# ===== サイドバー（利用目的＆説明）=====
+with st.sidebar:
+    st.header("利用目的")
+
+    # 既定モード（初回起動時）
+    if "mode" not in st.session_state:
+        st.session_state.mode = ct.ANSWER_MODE_1
+
+    st.session_state.mode = st.radio(
+        label="利用目的",
+        options=[ct.ANSWER_MODE_1, ct.ANSWER_MODE_2],
+        index=0 if st.session_state.mode == ct.ANSWER_MODE_1 else 1,
+        label_visibility="collapsed",
+    )
+
+    st.markdown("**「社内文書検索」 を選択した場合**")
+    st.info("入力内容と関連性が高い社内文書のありかを検索できます。")
+    st.caption("【入力例】\n社員の育成方針に関するMTGの議事録")
+
+    st.markdown("**「社内問い合わせ」 を選択した場合**")
+    st.info("質問・要望に対して、社内文書の情報をもとに回答を得られます。")
+    st.caption("【入力例】\n人事部に所属している従業員情報を一覧化して")
+
 
 ############################################################
 # 4. 初期表示
@@ -94,8 +120,6 @@ if not "initialized" in st.session_state:
 # タイトル表示
 cn.display_app_title()
 
-# モード表示
-cn.display_select_mode()
 
 # AIメッセージの初期表示
 cn.display_initial_ai_message()
