@@ -5,7 +5,7 @@ langchain-community
 langchain-openai
 openai
 tiktoken
-chromadb
+
 pymupdf
 docx2txt
 python-docx
@@ -13,4 +13,5 @@ beautifulsoup4
 lxml
 pandas
 requests
-faiss-cpu==1.8.0.post4
+faiss-cpu>=1.8.0,<1.13
+
