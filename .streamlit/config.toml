@@ -1,0 +1,7 @@
+[server]
+# inotify を使わずポーリングで変更検知
+fileWatcherType = "poll"
+# （任意）本番向けの無難な設定
+headless = true
+enableCORS = false
+enableXsrfProtection = true
