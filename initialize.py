@@ -144,7 +144,6 @@ def initialize_retriever():
             search_kwargs={"k": ct.RETRIEVER_TOP_K}
         )
 
-        # 参考ログ
         logger.info(
             "Retriever initialized. docs=%d, chunks=%d, k=%d",
             len(docs_all), len(splitted_docs), ct.RETRIEVER_TOP_K
@@ -179,16 +178,24 @@ def load_data_sources():
     recursive_file_check(ct.RAG_TOP_FOLDER_PATH, docs_all)
 
     web_docs_all = []
-    # ファイルとは別に、指定のWebページ内のデータも読み込み
-    # 読み込み対象のWebページ一覧に対して処理
+    header = {"User-Agent": os.getenv(
+        "USER_AGENT",
+        "Mozilla/5.0 (compatible; StreamlitBot/1.0; +https://streamlit.io)")}
     for web_url in ct.WEB_URL_LOAD_TARGETS:
-        # 指定のWebページを読み込み
-        loader = WebBaseLoader(web_url)
+        try:
+            try:
+                loader = WebBaseLoader(web_paths=[web_url], header_template=header)
+            except TypeError:
+                loader = WebBaseLoader(web_url, header_template=header)
+
         web_docs = loader.load()
-        # for文の外のリストに読み込んだデータソースを追加
         web_docs_all.extend(web_docs)
-    # 通常読み込みのデータソースにWebページのデータを追加
-    docs_all.extend(web_docs_all)
+    except Exception as e:
+        logging.getLogger(ct.LOGGER_NAME).warning(
+            f"Web load failed: {web_url} ({e})"
+        )
+        
+docs_all.extend(web_docs_all)
 
     return docs_all
 
