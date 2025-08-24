@@ -20,7 +20,24 @@ import components as cn
 # （自作）変数（定数）がまとめて定義・管理されているモジュール
 import constants as ct
 
+import os
+import streamlit as st
 
+# .env を安全に読み込む（ローカル用）
+try:
+    from dotenv import load_dotenv  # python-dotenv
+    load_dotenv()
+except Exception:
+    pass
+
+# Cloud では Secrets を優先
+if "OPENAI_API_KEY" in st.secrets:
+    os.environ["OPENAI_API_KEY"] = st.secrets["OPENAI_API_KEY"]
+
+# 任意: ログの WARNING 対策（出ていた USER_AGENT）
+if "USER_AGENT" in st.secrets:
+    os.environ["USER_AGENT"] = st.secrets["USER_AGENT"]
+    
 ############################################################
 # 2. 設定関連
 ############################################################
