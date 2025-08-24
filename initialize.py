@@ -34,8 +34,14 @@ except Exception:
 # Cloud では Secrets を優先
 if "OPENAI_API_KEY" in st.secrets:
     os.environ["OPENAI_API_KEY"] = st.secrets["OPENAI_API_KEY"]
+
 if "USER_AGENT" in st.secrets:
     os.environ["USER_AGENT"] = st.secrets["USER_AGENT"]
+else:
+    os.environ.setdefault(
+        "USER_AGENT",
+        "Mozilla/5.0 (compatible; StreamlitBot/1.0; +https://streamlit.io)"
+    )
 
 
 ############################################################
@@ -144,25 +150,26 @@ def initialize_session_state():
 def load_data_sources():
     """
     RAGの参照先となるデータソースの読み込み
-    """
-    logger = logging.getLogger(ct.LOGGER_NAME)
 
-    # ローカルファイル群
+    Returns:
+        読み込んだ通常データソース
+    """
+    # データソース（ファイル由来）
     docs_all = []
     recursive_file_check(ct.RAG_TOP_FOLDER_PATH, docs_all)
 
-    # Web からの読み込み
+    # Webページの読み込み
     web_docs_all = []
     header = {
         "User-Agent": os.getenv(
             "USER_AGENT",
-            "Mozilla/5.0 (compatible; StreamlitBot/1.0; +https://streamlit.io)",
+            "Mozilla/5.0 (compatible; StreamlitBot/1.0; +https://streamlit.io)"
         )
     }
 
     for web_url in ct.WEB_URL_LOAD_TARGETS:
         try:
-            # ライブラリの署名差異を吸収
+            # langchain の引数差異に対応
             try:
                 loader = WebBaseLoader(web_paths=[web_url], header_template=header)
             except TypeError:
@@ -172,12 +179,12 @@ def load_data_sources():
             web_docs_all.extend(web_docs)
 
         except Exception as e:
-            logger.warning("Web load failed: %s (%s)", web_url, e)
-            continue
+            logging.getLogger(ct.LOGGER_NAME).warning(
+                f"Web load failed: {web_url} ({e})"
+            )
 
-    # for の外で extend
+    # ファイル由来 + Web由来 を結合
     docs_all.extend(web_docs_all)
-
     return docs_all
 
 
