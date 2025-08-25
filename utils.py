@@ -114,3 +114,66 @@ def get_llm_response(chat_message):
     st.session_state.chat_history.extend([HumanMessage(content=chat_message), llm_response["answer"]])
 
     return llm_response
+
+from typing import Optional, Any, Dict
+
+def get_pdf_page_number(meta: Dict[str, Any]) -> Optional[int]:
+    """
+    ドキュメント metadata から PDF のページ番号を取り出す。
+    - "page" や "page_index" は 0 始まりの実装が多いので +1 補正
+    - "page_number" は 1 始まりの実装が多いので補正なし
+    - "loc" に入ってくる実装もあるため救済
+    見つからなければ None を返す
+    """
+    if not isinstance(meta, dict):
+        return None
+
+    # 直接のキー候補
+    direct_keys_zero_based = ("page", "page_index")
+    direct_keys_one_based = ("page_number",)
+
+    for k in direct_keys_zero_based:
+        if k in meta:
+            try:
+                p = int(meta[k])
+                return p + 1 if p >= 0 else None
+            except Exception:
+                pass
+
+    for k in direct_keys_one_based:
+        if k in meta:
+            try:
+                p = int(meta[k])
+                return p if p >= 1 else None
+            except Exception:
+                pass
+
+    # loc にネストされるパターンの救済
+    loc = meta.get("loc")
+    if isinstance(loc, dict):
+        # よくある候補をチェック
+        for k in ("page_number", "page", "pageIndex", "pageNumber"):
+            if k in loc:
+                try:
+                    p = int(loc[k])
+                    # loc.page は 0 始まりの実装がある
+                    if k.lower() in ("page", "pageindex"):
+                        return p + 1 if p >= 0 else None
+                    return p if p >= 1 else None
+                except Exception:
+                    pass
+
+    return None
+
+
+def format_source_with_page_if_pdf(meta: Dict[str, Any]) -> str:
+    """
+    表示用の「ソース文字列」を作る。
+    PDF かつページが取得できたら「（ページNo.X）」を付与。
+    """
+    src = meta.get("source") or meta.get("file_path") or meta.get("path") or ""
+    if isinstance(src, str) and src.lower().endswith(".pdf"):
+        p = get_pdf_page_number(meta)
+        if p:
+            return f"{src}（ページNo.{p}）"
+    return src

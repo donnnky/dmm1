@@ -167,9 +167,9 @@ def display_search_llm_response(llm_response):
         st.markdown(main_message)
         
         # 参照元のありかに応じて、適したアイコンを取得
-        icon = utils.get_source_icon(main_file_path)
-        main_page_number = llm_response["context"][0].metadata.get("page")
-        label = _label_with_page_if_pdf(main_file_path, main_page_number)
+        icon = utils.get_source_icon(message['content']['main_file_path'])
+        main_page = message['content'].get('main_page_number')
+        label = _label_with_page_if_pdf(message['content']['main_file_path'], main_page)
         st.success(label, icon=icon)
 
         # ==========================================
@@ -263,54 +263,44 @@ def display_search_llm_response(llm_response):
 def display_contact_llm_response(llm_response):
     """
     「社内問い合わせ」モードにおけるLLMレスポンスを表示
-
-    Args:
-        llm_response: LLMからの回答
-
-    Returns:
-        LLMからの回答を画面表示用に整形した辞書データ
     """
-    # LLMからの回答を表示
+    # 本文
     st.markdown(llm_response["answer"])
 
-    # ユーザーの質問・要望に適切な回答を行うための情報が、社内文書のデータベースに存在しなかった場合
-    if llm_response["answer"] != ct.INQUIRY_NO_MATCH_ANSWER:
-        # 区切り線を表示
-        st.divider()
+    content = {"mode": ct.ANSWER_MODE_2, "answer": llm_response["answer"]}
 
-        # 補足メッセージを表示
+    # 情報源の表示（該当なしのときは何もしない）
+    if llm_response["answer"] != ct.INQUIRY_NO_MATCH_ANSWER:
+        st.divider()
         message = "情報源"
         st.markdown(f"##### {message}")
 
-        # 参照元のファイルパスの一覧を格納するためのリストを用意
-        file_path_list = []
+        file_path_seen = set()
         file_info_list = []
 
-        # LLMが回答生成の参照元として使ったドキュメントの一覧が「context」内のリストの中に入っているため、ループ処理
         for document in llm_response["context"]:
-            file_path = document.metadata["source"]
-            if file_path in file_path_list:
+            # パス取得（source キーが一般的）
+            file_path = document.metadata.get("source") or document.metadata.get("file_path")
+            if not file_path:
+                continue
+            if file_path in file_path_seen:
                 continue
 
-        page_number = document.metadata.get("page")
-        label = _label_with_page_if_pdf(file_path, page_number)
-        icon = utils.get_source_icon(file_path)   # アイコン判定は拡張子だけ使うので「パス」で行う
-        st.info(label, icon=icon)
-        file_path_list.append(file_path)
+            # ページ番号取得（なければ None）
+            page_number = document.metadata.get("page")
 
-    # 再描画に備え、パスと表示用ラベルのペアで保存
-    file_info_list.append({"path": file_path, "label": label})
+            # PDF のときだけ（ページNo.X）を付ける
+            label = _label_with_page_if_pdf(file_path, page_number)
+            icon = utils.get_source_icon(file_path)
 
-    # 表示用の会話ログに格納するためのデータを用意
-    # - 「mode」: モード（「社内文書検索」or「社内問い合わせ」）
-    # - 「answer」: LLMからの回答
-    # - 「message」: 補足メッセージ
-    # - 「file_path_list」: ファイルパスの一覧リスト
-    content = {}
-    content["mode"] = ct.ANSWER_MODE_2
-    content["answer"] = llm_response["answer"]
-    # 参照元のドキュメントが取得できた場合のみ
-    if llm_response["answer"] != ct.INQUIRY_NO_MATCH_ANSWER:
+            # 表示
+            st.info(label, icon=icon)
+
+            # 重複排除と再描画用の保存
+            file_path_seen.add(file_path)
+            file_info_list.append({"path": file_path, "label": label})
+
+        # 再描画用に会話ログへ保存するデータ
         content["message"] = message
         content["file_info_list"] = file_info_list
 
