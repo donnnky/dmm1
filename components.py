@@ -99,12 +99,10 @@ def display_conversation_log():
 
                         # 参照元のありかに応じて、適したアイコンを取得
                         icon = utils.get_source_icon(message['content']['main_file_path'])
-                        # 参照元ドキュメントのページ番号が取得できた場合にのみ、ページ番号を表示
-                        if "main_page_number" in message["content"]:
-                            st.success(f"{message['content']['main_file_path']}", icon=icon)
-                        else:
-                            st.success(f"{message['content']['main_file_path']}", icon=icon)
-                        
+                        main_page = message['content'].get('main_page_number')
+                        label = _label_with_page_if_pdf(message['content']['main_file_path'], main_page)
+                        st.success(label, icon=icon)
+
                         # ==========================================
                         # ユーザー入力値と関連性が高いサブドキュメントのありかを表示
                         # ==========================================
@@ -116,11 +114,8 @@ def display_conversation_log():
                             for sub_choice in message["content"]["sub_choices"]:
                                 # 参照元のありかに応じて、適したアイコンを取得
                                 icon = utils.get_source_icon(sub_choice['source'])
-                                # 参照元ドキュメントのページ番号が取得できた場合にのみ、ページ番号を表示
-                                if "page_number" in sub_choice:
-                                    st.info(f"{sub_choice['source']}", icon=icon)
-                                else:
-                                    st.info(f"{sub_choice['source']}", icon=icon)
+                                label = _label_with_page_if_pdf(sub_choice['source'], sub_choice.get('page_number'))
+                                st.info(label, icon=icon)
                     # ファイルのありかの情報が取得できなかった場合、LLMからの回答のみ表示
                     else:
                         st.markdown(message["content"]["answer"])
