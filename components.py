@@ -279,25 +279,14 @@ def display_contact_llm_response(llm_response):
         file_info_list = []
 
         for document in llm_response["context"]:
-            # パス取得（source キーが一般的）
-            file_path = document.metadata.get("source") or document.metadata.get("file_path")
-            if not file_path:
+            file_path = document.metadata["source"]
+            if file_path in file_path_list:
                 continue
-            if file_path in file_path_seen:
-                continue
-
-            # ページ番号取得（なければ None）
             page_number = document.metadata.get("page")
-
-            # PDF のときだけ（ページNo.X）を付ける
             label = _label_with_page_if_pdf(file_path, page_number)
             icon = utils.get_source_icon(file_path)
-
-            # 表示
             st.info(label, icon=icon)
-
-            # 重複排除と再描画用の保存
-            file_path_seen.add(file_path)
+            file_path_list.append(file_path)
             file_info_list.append({"path": file_path, "label": label})
 
         # 再描画用に会話ログへ保存するデータ
